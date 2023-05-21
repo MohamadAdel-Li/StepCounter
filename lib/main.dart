@@ -8,9 +8,6 @@ void main() async {
 }
 
 
-
-
-
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -38,6 +35,59 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isCounting = false;
   late StreamSubscription<StepCount> _streamSubscription;
 
+  late Timer _timer;
+  int _elapsedSeconds = 0;
+
+  bool _isMoving = false; // declare _isMoving
+  int _previousStepCount = 0; // declare _previousStepCount
+
+  Widget timerWidget() {
+    String formattedTime = formatDuration(Duration(seconds: _elapsedSeconds));
+
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.timer,
+            color: Colors.blue,
+          ),
+          SizedBox(width: 5),
+          Text(
+            'Elapsed Time:',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16.0,
+            ),
+          ),
+          SizedBox(width: 5),
+          Text(
+            formattedTime,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16.0,
+              color: Colors.blue,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String formatDuration(Duration duration) {
+    String hours = (duration.inHours % 24).toString().padLeft(2, '0');
+    String minutes = (duration.inMinutes % 60).toString().padLeft(2, '0');
+    String seconds = (duration.inSeconds % 60).toString().padLeft(2, '0');
+
+    return '$hours:$minutes:$seconds';
+  }
+
+
   @override
   void initState() {
     super.initState();
@@ -54,19 +104,56 @@ class _MyHomePageState extends State<MyHomePage> {
     _streamSubscription = Pedometer.stepCountStream.listen((event) {
       setState(() {
         _stepCount = event.steps;
+
         if (_isCounting) {
           _currentStepCount = event.steps - _initialStepCount;
         }
+
+        // Infer whether the device is moving or not based on step count
+        if (_previousStepCount != event.steps) {
+          _isMoving = true;
+        } else {
+          _isMoving = false;
+        }
+
+        _previousStepCount = event.steps;
       });
     }, onError: (error) {
       print('Error: $error');
     }, onDone: () {
       print('Stream closed');
     }, cancelOnError: true);
+
+    // Periodically check step count to infer whether the device is moving or not
+    Timer.periodic(Duration(seconds: 5), (timer) {
+      if (_previousStepCount != _stepCount) {
+        setState(() {
+          _isMoving = true;
+        });
+      } else {
+        setState(() {
+          _isMoving = false;
+        });
+      }
+      _previousStepCount = _stepCount;
+    });
   }
+
 
   void _stopListening() {
     _streamSubscription.cancel();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
+      setState(() {
+        _elapsedSeconds++;
+      });
+    });
+  }
+
+  void _stopTimer() {
+    _timer.cancel();
   }
 
   void _resetSteps() {
@@ -84,6 +171,7 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _initialStepCount = _stepCount;
       _isCounting = true;
+      _startTimer(); // Start the timer
     });
   }
 
@@ -91,6 +179,7 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _isCounting = false;
       _currentStepCount = _stepCount - _initialStepCount;
+      _stopTimer(); // Stop the timer
     });
   }
 
@@ -111,37 +200,67 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Text(
-              'Total step count:',
+              'Device Status:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16.0,
+              ),
+            ),
+            SizedBox(height: 10),
+            Icon(
+              _isMoving ? Icons.directions_walk : Icons.accessibility,
+              size: 50,
+              color: _isMoving ? Colors.green : Colors.grey,
+            ),
+            SizedBox(height: 20),
+            Text(
+              'Total Step Count:',
             ),
             Text(
               '$_stepCount',
-              style: Theme.of(context).textTheme.headline4,
+              style: Theme
+                  .of(context)
+                  .textTheme
+                  .headline4,
             ),
             SizedBox(height: 20),
             Text(
-              'Current step count:',
+              'Current Step Count:',
             ),
             Text(
               '$_currentStepCount',
-              style: Theme.of(context).textTheme.headline4,
+              style: Theme
+                  .of(context)
+                  .textTheme
+                  .headline4,
             ),
             SizedBox(height: 20),
             Text(
-              'Sensor status: $_sensorStatus',
+              'Sensor Status: $_sensorStatus',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16.0,
               ),
             ),
             SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _isCounting ? null : _startCounting,
-              child: Text('Start Counting'),
-            ),
-            SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: _isCounting ? _stopCounting : null,
-              child: Text('Stop Counting'),
+            if (_isCounting) timerWidget(),
+            // Display the timer only when counting
+            SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _isCounting ? _stopCounting : _startCounting,
+              icon: Icon(
+                _isCounting ? Icons.stop : Icons.play_arrow,
+                color: Colors.white,
+              ),
+              label: Text(
+                _isCounting ? 'Stop Counting' : 'Start Counting',
+                style: TextStyle(
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                primary: _isCounting ? Colors.red : Colors.blue,
+              ),
             ),
             SizedBox(height: 10),
             ElevatedButton(
@@ -153,4 +272,6 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
+
+
 }
